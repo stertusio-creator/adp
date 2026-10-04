@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AeroNexa — Control Presupuestario</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --navy:#0A1F44;
+      --gold:#C9A227;
+      --bg:#F5F7FB;
+      --green:#15803D;
+      --amber:#B45309;
+      --red:#B91C1C;
+    }
+    body{background:var(--bg);}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 6px 24px rgba(15,23,42,.06);}
+    .badge{display:inline-flex;align-items:center;gap:.35rem;padding:.28rem .6rem;border-radius:999px;font-weight:700;font-size:.8rem;}
+    .badge-green{background:#DCFCE7;color:#166534;}
+    .badge-yellow{background:#FEF3C7;color:#92400E;}
+    .badge-red{background:#FEE2E2;color:#991B1B;}
+    .badge-gray{background:#E5E7EB;color:#4B5563;}
+    .metric-value{font-variant-numeric:tabular-nums;}
+    input,select{outline:none;}
+    input:focus,select:focus{border-color:#64748b;box-shadow:0 0 0 3px rgba(100,116,139,.12);}
+    @media print{
+      body{background:#fff;}
+      .no-print{display:none!important;}
+      .card{box-shadow:none;break-inside:avoid;}
+      canvas{max-height:320px!important;}
+      .print-grid{display:grid!important;grid-template-columns:1fr 1fr!important;}
+    }
+  </style>
+</head>
+<body class="text-slate-800">
+  <header class="bg-[#0A1F44] text-white">
+    <div class="max-w-7xl mx-auto px-5 py-7">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+        <div>
+          <div class="text-sm uppercase tracking-[0.25em] text-slate-300">AeroNexa</div>
+          <h1 class="text-2xl md:text-4xl font-bold mt-1">Control Presupuestario & Semáforo de Desviaciones</h1>
+          <p class="text-slate-300 mt-2">Seguimiento mensual de presupuesto, ejecución y alertas de gestión</p>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">
+          <span class="bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-sm">Umbral de tolerancia: ±5%</span>
+          <button onclick="window.print()" class="no-print bg-white text-[#0A1F44] rounded-xl px-4 py-2 font-semibold flex items-center gap-2 hover:bg-slate-100">
+            <i data-lucide="printer" class="w-4 h-4"></i> Imprimir / Guardar PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-5 py-7 space-y-7">
+    <section class="grid lg:grid-cols-[1.2fr_.8fr] gap-6">
+      <div class="card p-6 no-print">
+        <div class="flex items-center gap-3 mb-5">
+          <div class="p-2 rounded-xl bg-slate-100"><i data-lucide="database" class="w-5 h-5"></i></div>
+          <div>
+            <h2 class="text-xl font-bold">Carga de Datos Reales</h2>
+            <p class="text-sm text-slate-500">Ingrese o actualice la ejecución mensual.</p>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <label class="block">
+            <span class="text-sm font-semibold">Mes</span>
+            <select id="monthSelect" class="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 bg-white"></select>
+          </label>
+          <label class="block">
+            <span class="text-sm font-semibold">Ingresos Reales</span>
+            <input id="realIncome" type="number" min="0" step="0.01" class="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5" placeholder="USD" />
+          </label>
+          <label class="block">
+            <span class="text-sm font-semibold">Gastos Operativos Reales</span>
+            <input id="realOpEx" type="number" min="0" step="0.01" class="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5" placeholder="USD" />
+          </label>
+          <label class="block">
+            <span class="text-sm font-semibold">Gastos Administrativos Reales</span>
+            <input id="realAdmin" type="number" min="0" step="0.01" class="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5" placeholder="USD" />
+          </label>
+        </div>
+
+        <div class="flex flex-wrap gap-3 mt-5">
+          <button id="saveBtn" class="bg-[#0A1F44] text-white rounded-xl px-4 py-2.5 font-semibold flex items-center gap-2 hover:opacity-90">
+            <i data-lucide="save" class="w-4 h-4"></i> Guardar / Actualizar Mes
+          </button>
+          <button id="demoBtn" class="border border-slate-300 bg-white rounded-xl px-4 py-2.5 font-semibold flex items-center gap-2 hover:bg-slate-50">
+            <i data-lucide="flask-conical" class="w-4 h-4"></i> Cargar datos de prueba
+          </button>
+          <button id="clearBtn" class="border border-red-200 text-red-700 bg-red-50 rounded-xl px-4 py-2.5 font-semibold flex items-center gap-2 hover:bg-red-100">
+            <i data-lucide="trash-2" class="w-4 h-4"></i> Limpiar datos reales
+          </button>
+        </div>
+        <div id="formMessage" class="mt-4 text-sm font-medium"></div>
+      </div>
+
+      <div class="card p-6">
+        <div class="flex items-center gap-3 mb-5">
+          <div class="p-2 rounded-xl bg-slate-100"><i data-lucide="calendar-range" class="w-5 h-5"></i></div>
+          <div>
+            <h2 class="text-xl font-bold">Período Analizado</h2>
+            <p class="text-sm text-slate-500">Acumulado progresivo del año.</p>
+          </div>
+        </div>
+        <select id="periodSelect" class="w-full border border-slate-300 rounded-xl px-3 py-3 bg-white"></select>
+        <div class="mt-5 grid grid-cols-2 gap-4">
+          <div class="rounded-2xl bg-slate-50 p-4">
+            <div class="text-sm text-slate-500">Meses registrados</div>
+            <div id="registeredMonths" class="text-2xl font-bold mt-1">0 de 12</div>
+          </div>
+          <div class="rounded-2xl bg-slate-50 p-4">
+            <div class="text-sm text-slate-500">Estado general</div>
+            <div id="overallStatus" class="mt-2"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="summaryCards" class="grid md:grid-cols-2 xl:grid-cols-4 gap-5"></section>
+
+    <section class="card p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="p-2 rounded-xl bg-slate-100"><i data-lucide="gauge" class="w-5 h-5"></i></div>
+        <h2 class="text-xl font-bold">Indicadores de Gestión</h2>
+      </div>
+      <div id="kpis" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+    </section>
+
+    <section class="card p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="p-2 rounded-xl bg-slate-100"><i data-lucide="sparkles" class="w-5 h-5"></i></div>
+        <div>
+          <h2 class="text-xl font-bold">Lectura Ejecutiva</h2>
+          <p class="text-sm text-slate-500">Conclusiones automáticas basadas exclusivamente en los datos cargados.</p>
+        </div>
+      </div>
+      <ul id="executiveReading" class="space-y-3 text-sm md:text-base"></ul>
+    </section>
+
+    <section class="card p-6 overflow-hidden">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="p-2 rounded-xl bg-slate-100"><i data-lucide="table-2" class="w-5 h-5"></i></div>
+        <h2 class="text-xl font-bold">Comparativo Ejecutivo Mes a Mes</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[1100px]">
+          <thead class="bg-slate-100 text-slate-700">
+            <tr>
+              <th class="text-left px-3 py-3">Mes</th>
+              <th class="text-right px-3 py-3">Ingresos Pto.</th>
+              <th class="text-right px-3 py-3">Ingresos Real</th>
+              <th class="text-center px-3 py-3">Ingreso %</th>
+              <th class="text-right px-3 py-3">Gastos Tot. Pto.</th>
+              <th class="text-right px-3 py-3">Gastos Tot. Real</th>
+              <th class="text-center px-3 py-3">Gastos %</th>
+              <th class="text-right px-3 py-3">Utilidad Pto.</th>
+              <th class="text-right px-3 py-3">Utilidad Real</th>
+              <th class="text-center px-3 py-3">Utilidad %</th>
+            </tr>
+          </thead>
+          <tbody id="monthlyTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="p-2 rounded-xl bg-red-50 text-red-700"><i data-lucide="triangle-alert" class="w-5 h-5"></i></div>
+        <h2 class="text-xl font-bold">Principales Alertas de Gestión</h2>
+      </div>
+      <div id="alerts" class="space-y-3"></div>
+    </section>
+
+    <section class="grid lg:grid-cols-2 gap-6 print-grid">
+      <div class="card p-5"><h3 class="font-bold mb-4">Ingresos — Presupuesto vs. Real</h3><canvas id="incomeChart"></canvas></div>
+      <div class="card p-5"><h3 class="font-bold mb-4">Gastos Totales — Presupuesto vs. Real</h3><canvas id="expenseChart"></canvas></div>
+      <div class="card p-5"><h3 class="font-bold mb-4">Utilidad Neta — Evolución Mensual</h3><canvas id="profitChart"></canvas></div>
+      <div class="card p-5"><h3 class="font-bold mb-4">Desviación de Utilidad Neta</h3><canvas id="profitGapChart"></canvas></div>
+    </section>
+  </main>
+
+  <footer class="text-center py-8 text-sm text-slate-500">Autor Sergio Tertusio</footer>
+
+<script>
+const months = [
+  {name:'Enero', income:192445, op:69886, admin:42937},
+  {name:'Febrero', income:156328, op:64747, admin:47559},
+  {name:'Marzo', income:162337, op:83965, admin:49096},
+  {name:'Abril', income:157602, op:93255, admin:37035},
+  {name:'Mayo', income:154914, op:65632, admin:44209},
+  {name:'Junio', income:204810, op:64578, admin:37886},
+  {name:'Julio', income:161889, op:87821, admin:31936},
+  {name:'Agosto', income:166226, op:74630, admin:49103},
+  {name:'Septiembre', income:158108, op:85996, admin:31624},
+  {name:'Octubre', income:178977, op:63052, admin:48240},
+  {name:'Noviembre', income:167455, op:78979, admin:43734},
+  {name:'Diciembre', income:168907, op:67719, admin:48707}
+].map(m => ({...m, total:m.op+m.admin, profit:m.income-m.op-m.admin}));
+
+const STORAGE_KEY = 'aeronexa_budget_actuals_v1';
+let actuals = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+let charts = {};
+
+const $ = id => document.getElementById(id);
+
+function currency(n){
+  if(n === null || n === undefined || Number.isNaN(n)) return 'Pendiente';
+  return 'USD ' + Math.round(n).toLocaleString('en-US');
+}
+function pct(n){
+  if(n === null || n === undefined || Number.isNaN(n)) return 'Pendiente';
+  const sign = n > 0 ? '+' : '';
+  return sign + n.toFixed(1) + '%';
+}
+function deviation(real,budget){
+  if(real === null || real === undefined || !budget) return null;
+  return ((real-budget)/budget)*100;
+}
+function statusFor(type, dev){
+  if(dev === null) return 'gray';
+  if(type === 'goodHigher'){
+    if(dev >= 0) return 'green';
+    if(dev >= -5) return 'yellow';
+    return 'red';
+  }
+  if(dev <= 0) return 'green';
+  if(dev <= 5) return 'yellow';
+  return 'red';
+}
+function badge(type, dev){
+  const s = statusFor(type, dev);
+  const cls = {green:'badge-green',yellow:'badge-yellow',red:'badge-red',gray:'badge-gray'}[s];
+  const icon = {green:'circle-check',yellow:'triangle-alert',red:'circle-x',gray:'clock-3'}[s];
+  return `<span class="badge ${cls}"><i data-lucide="${icon}" class="w-4 h-4"></i>${dev===null?'Pendiente':pct(dev)}</span>`;
+}
+function actualMonth(i){
+  const a = actuals[i];
+  if(!a) return null;
+  const total = a.op + a.admin;
+  return {...a,total,profit:a.income-total};
+}
+function saveStorage(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(actuals));
+}
+function setupSelectors(){
+  $('monthSelect').innerHTML = months.map((m,i)=>`<option value="${i}">${m.name}</option>`).join('');
+  $('periodSelect').innerHTML =
+    `<option value="12">Año completo</option>` +
+    months.map((m,i)=>`<option value="${i+1}">Enero${i===0?'':' - '+m.name}</option>`).join('');
+  $('periodSelect').value='12';
+}
+function loadMonthForm(){
+  const i = +$('monthSelect').value;
+  const a = actuals[i];
+  $('realIncome').value = a?.income ?? '';
+  $('realOpEx').value = a?.op ?? '';
+  $('realAdmin').value = a?.admin ?? '';
+}
+function validateField(el){
+  const v = Number(el.value);
+  return el.value !== '' && Number.isFinite(v) && v >= 0 ? v : null;
+}
+function showMessage(msg, ok=true){
+  $('formMessage').textContent = msg;
+  $('formMessage').className = `mt-4 text-sm font-medium ${ok?'text-green-700':'text-red-700'}`;
+  setTimeout(()=>{$('formMessage').textContent='';},3000);
+}
+function saveMonth(){
+  const i=+$('monthSelect').value;
+  const income=validateField($('realIncome'));
+  const op=validateField($('realOpEx'));
+  const admin=validateField($('realAdmin'));
+  if([income,op,admin].some(v=>v===null)){
+    showMessage('Ingrese valores válidos y no negativos en los tres campos.',false);
+    return;
+  }
+  actuals[i]={income,op,admin};
+  saveStorage();
+  showMessage(`${months[i].name} guardado correctamente.`);
+  renderAll();
+}
+function loadDemo(){
+  const factors = [
+    [0.96,1.02,0.98],[1.03,0.99,1.01],[0.89,1.08,1.04],[1.01,1.06,1.02],
+    [0.98,0.96,0.99],[1.07,0.97,0.95],[0.94,1.09,1.03],[1.02,1.01,0.98],
+    [0.92,1.07,1.06],[1.05,0.95,1.02],[0.99,1.04,0.97],[1.04,0.98,0.96]
+  ];
+  months.forEach((m,i)=>{
+    actuals[i]={
+      income:Math.round(m.income*factors[i][0]),
+      op:Math.round(m.op*factors[i][1]),
+      admin:Math.round(m.admin*factors[i][2])
+    };
+  });
+  saveStorage(); loadMonthForm(); renderAll(); showMessage('Datos de prueba cargados.');
+}
+function clearData(){
+  if(!confirm('¿Desea borrar todos los datos reales almacenados?')) return;
+  actuals={}; saveStorage(); loadMonthForm(); renderAll(); showMessage('Datos reales eliminados.');
+}
+function aggregate(limit){
+  const budget = {income:0,op:0,admin:0,total:0,profit:0};
+  const real = {income:0,op:0,admin:0,total:0,profit:0};
+  let count=0;
+  for(let i=0;i<limit;i++){
+    const m=months[i];
+    budget.income+=m.income; budget.op+=m.op; budget.admin+=m.admin; budget.total+=m.total; budget.profit+=m.profit;
+    const a=actualMonth(i);
+    if(a){
+      count++;
+      real.income+=a.income; real.op+=a.op; real.admin+=a.admin; real.total+=a.total; real.profit+=a.profit;
+    }
+  }
+  return {budget,real,count};
+}
+function summaryCard(title,budget,real,type,highlight=false){
+  const dev = deviation(real,budget);
+  const diff = real===null?null:real-budget;
+  return `<div class="card p-5 ${highlight?'ring-2 ring-[#C9A227]':''}">
+    <div class="flex items-center justify-between gap-3">
+      <h3 class="font-bold">${title}</h3>${badge(type,dev)}
+    </div>
+    <div class="mt-5 grid grid-cols-2 gap-3 text-sm">
+      <div><div class="text-slate-500">Presupuesto</div><div class="font-bold metric-value mt-1">${currency(budget)}</div></div>
+      <div><div class="text-slate-500">Real</div><div class="font-bold metric-value mt-1">${currency(real)}</div></div>
+      <div><div class="text-slate-500">Desviación</div><div class="font-bold metric-value mt-1">${currency(diff)}</div></div>
+      <div><div class="text-slate-500">Desviación %</div><div class="font-bold metric-value mt-1">${dev===null?'Pendiente':pct(dev)}</div></div>
+    </div>
+  </div>`;
+}
+function renderSummary(limit){
+  const {budget,real,count}=aggregate(limit);
+  const has=count>0;
+  $('summaryCards').innerHTML = [
+    summaryCard('Ingresos',budget.income,has?real.income:null,'goodHigher'),
+    summaryCard('Gastos Operativos',budget.op,has?real.op:null,'goodLower'),
+    summaryCard('Gastos Totales',budget.total,has?real.total:null,'goodLower'),
+    summaryCard('Utilidad Neta',budget.profit,has?real.profit:null,'goodHigher',true)
+  ].join('');
+
+  const bMargin=budget.income ? budget.profit/budget.income*100 : 0;
+  const rMargin=has && real.income ? real.profit/real.income*100 : null;
+  const incomeCompliance=has ? real.income/budget.income*100 : null;
+  const expenseExec=has ? real.total/budget.total*100 : null;
+
+  const kpi = (label,val,suffix='%')=>`<div class="rounded-2xl bg-slate-50 p-4">
+    <div class="text-sm text-slate-500">${label}</div>
+    <div class="text-2xl font-bold mt-1">${val===null?'Pendiente':val.toFixed(1)+suffix}</div>
+  </div>`;
+  $('kpis').innerHTML = [
+    kpi('Margen Neto Presupuestado',bMargin),
+    kpi('Margen Neto Real',rMargin),
+    kpi('Cumplimiento de Ingresos',incomeCompliance),
+    kpi('Ejecución de Gastos',expenseExec)
+  ].join('');
+
+  $('registeredMonths').textContent = `${Object.keys(actuals).length} de 12`;
+
+  let overall='gray';
+  if(has){
+    const vals=[
+      statusFor('goodHigher',deviation(real.income,budget.income)),
+      statusFor('goodLower',deviation(real.total,budget.total)),
+      statusFor('goodHigher',deviation(real.profit,budget.profit))
+    ];
+    overall = vals.includes('red')?'red':vals.includes('yellow')?'yellow':'green';
+  }
+  const overallLabels={green:'Favorable',yellow:'Atención',red:'Crítico',gray:'Pendiente'};
+  $('overallStatus').innerHTML=`<span class="badge badge-${overall}">${overallLabels[overall]}</span>`;
+}
+function renderTable(limit){
+  let html='';
+  for(let i=0;i<limit;i++){
+    const m=months[i], a=actualMonth(i);
+    const dI=a?deviation(a.income,m.income):null;
+    const dT=a?deviation(a.total,m.total):null;
+    const dP=a?deviation(a.profit,m.profit):null;
+    html += `<tr class="border-b border-slate-100 hover:bg-slate-50">
+      <td class="px-3 py-3 font-semibold">${m.name}</td>
+      <td class="px-3 py-3 text-right">${currency(m.income)}</td>
+      <td class="px-3 py-3 text-right">${currency(a?.income)}</td>
+      <td class="px-3 py-3 text-center">${badge('goodHigher',dI)}</td>
+      <td class="px-3 py-3 text-right">${currency(m.total)}</td>
+      <td class="px-3 py-3 text-right">${currency(a?.total)}</td>
+      <td class="px-3 py-3 text-center">${badge('goodLower',dT)}</td>
+      <td class="px-3 py-3 text-right">${currency(m.profit)}</td>
+      <td class="px-3 py-3 text-right">${currency(a?.profit)}</td>
+      <td class="px-3 py-3 text-center">${badge('goodHigher',dP)}</td>
+    </tr>`;
+  }
+  $('monthlyTable').innerHTML=html;
+}
+function renderAlerts(limit){
+  const items=[];
+  for(let i=0;i<limit;i++){
+    const m=months[i],a=actualMonth(i);
+    if(!a) continue;
+    [
+      ['Ingresos',a.income,m.income,'goodHigher'],
+      ['Gastos Operativos',a.op,m.op,'goodLower'],
+      ['Gastos Administrativos',a.admin,m.admin,'goodLower'],
+      ['Gastos Totales',a.total,m.total,'goodLower'],
+      ['Utilidad Neta',a.profit,m.profit,'goodHigher']
+    ].forEach(([label,real,budget,type])=>{
+      const dev=deviation(real,budget);
+      if(statusFor(type,dev)==='red'){
+        const severity = type==='goodHigher' ? Math.abs(Math.min(dev,0)) : Math.max(dev,0);
+        items.push({month:m.name,label,real,budget,dev,severity});
+      }
+    });
+  }
+  items.sort((a,b)=>b.severity-a.severity);
+  if(!items.length){
+    $('alerts').innerHTML='<div class="rounded-2xl bg-green-50 text-green-800 p-4 font-medium">No se registran desviaciones críticas en el período seleccionado.</div>';
+    return;
+  }
+  $('alerts').innerHTML=items.slice(0,5).map(x=>`
+    <div class="border border-red-100 bg-red-50/60 rounded-2xl p-4">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <div><span class="font-bold">${x.month} — ${x.label}</span><div class="text-sm text-slate-600 mt-1">Real: ${currency(x.real)} · Presupuesto: ${currency(x.budget)}</div></div>
+        ${badge(x.label.includes('Gasto')?'goodLower':'goodHigher',x.dev)}
+      </div>
+    </div>`).join('');
+}
+function renderReading(limit){
+  const {budget,real,count}=aggregate(limit);
+  const messages=[];
+  if(!count){
+    messages.push('Aún no existen datos reales suficientes para generar una lectura ejecutiva.');
+  } else {
+    const di=deviation(real.income,budget.income), de=deviation(real.total,budget.total), dp=deviation(real.profit,budget.profit);
+    messages.push(`Los ingresos acumulados se encuentran ${Math.abs(di).toFixed(1)}% ${di>=0?'por encima':'por debajo'} del presupuesto.`);
+    messages.push(`Los gastos totales muestran una desviación de ${pct(de)} frente al presupuesto acumulado.`);
+    messages.push(`La utilidad neta acumulada está ${currency(Math.abs(real.profit-budget.profit))} ${real.profit>=budget.profit?'por encima':'por debajo'} de lo presupuestado.`);
+    const complete=[];
+    for(let i=0;i<limit;i++){
+      const a=actualMonth(i); if(!a) continue;
+      complete.push({i,dev:deviation(a.profit,months[i].profit),profit:a.profit});
+    }
+    if(complete.length){
+      const best=complete.slice().sort((a,b)=>b.dev-a.dev)[0];
+      const worst=complete.slice().sort((a,b)=>a.dev-b.dev)[0];
+      messages.push(`${months[best.i].name} registra el mejor desempeño relativo de utilidad del período.`);
+      if(worst.i!==best.i) messages.push(`${months[worst.i].name} presenta la mayor brecha desfavorable de utilidad del período.`);
+    }
+  }
+  $('executiveReading').innerHTML=messages.map(m=>`<li class="flex gap-3"><i data-lucide="chevron-right" class="w-5 h-5 mt-0.5 text-[#0A1F44] shrink-0"></i><span>${m}</span></li>`).join('');
+}
+function chartData(limit,key){
+  return months.slice(0,limit).map((m,i)=>{
+    const a=actualMonth(i);
+    return {label:m.name,budget:m[key],real:a?a[key]:null};
+  });
+}
+function destroyCharts(){
+  Object.values(charts).forEach(c=>c?.destroy());
+  charts={};
+}
+function renderCharts(limit){
+  destroyCharts();
+  const income=chartData(limit,'income'), total=chartData(limit,'total'), profit=chartData(limit,'profit');
+  const common={responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true}}};
+  charts.income=new Chart($('incomeChart'),{type:'bar',data:{labels:income.map(x=>x.label),datasets:[
+    {label:'Presupuesto',data:income.map(x=>x.budget),backgroundColor:'rgba(10,31,68,.75)'},
+    {label:'Real',data:income.map(x=>x.real),backgroundColor:'rgba(201,162,39,.75)'}
+  ]},options:common});
+  charts.expense=new Chart($('expenseChart'),{type:'bar',data:{labels:total.map(x=>x.label),datasets:[
+    {label:'Presupuesto',data:total.map(x=>x.budget),backgroundColor:'rgba(10,31,68,.75)'},
+    {label:'Real',data:total.map(x=>x.real),backgroundColor:'rgba(201,162,39,.75)'}
+  ]},options:common});
+  charts.profit=new Chart($('profitChart'),{type:'line',data:{labels:profit.map(x=>x.label),datasets:[
+    {label:'Utilidad Presupuestada',data:profit.map(x=>x.budget),borderColor:'#0A1F44',backgroundColor:'#0A1F44',tension:.3},
+    {label:'Utilidad Real',data:profit.map(x=>x.real),borderColor:'#C9A227',backgroundColor:'#C9A227',tension:.3}
+  ]},options:common});
+  charts.gap=new Chart($('profitGapChart'),{type:'bar',data:{labels:profit.map(x=>x.label),datasets:[
+    {label:'Brecha Real - Presupuesto',data:profit.map(x=>x.real===null?null:x.real-x.budget),backgroundColor:profit.map(x=>x.real===null?'#CBD5E1':x.real-x.budget>=0?'#16A34A':'#DC2626')}
+  ]},options:{...common,plugins:{legend:{display:false}}}});
+}
+function renderAll(){
+  const limit=+$('periodSelect').value;
+  renderSummary(limit);
+  renderTable(limit);
+  renderAlerts(limit);
+  renderReading(limit);
+  renderCharts(limit);
+  lucide.createIcons();
+}
+$('monthSelect').addEventListener('change',loadMonthForm);
+$('periodSelect').addEventListener('change',renderAll);
+$('saveBtn').addEventListener('click',saveMonth);
+$('demoBtn').addEventListener('click',loadDemo);
+$('clearBtn').addEventListener('click',clearData);
+
+setupSelectors();
+loadMonthForm();
+renderAll();
+lucide.createIcons();
+</script>
+</body>
+</html>
